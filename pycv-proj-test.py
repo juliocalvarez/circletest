@@ -19,6 +19,7 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import argparse
 
 def euclideanclose(im_bin, count):
     '''
@@ -27,11 +28,13 @@ def euclideanclose(im_bin, count):
     :param  im:         The image Input as binary image type.
     :return:            "Binary image with holes filled"
     '''
-    # Copy the thresholded image.
+    # Duplicating input image and generating its inverse.
     im_in = im_bin.copy()
     notim_in = cv2.bitwise_not(im_in)  # notim_in = 255 - im_in #That's the same thing
+    # Calculating euclidean distance transform based on the inverse image
     dist_transform = cv2.distanceTransform(notim_in, cv2.DIST_L2, 5)
     ret, dilatation = cv2.threshold(dist_transform, count, 255, cv2.THRESH_BINARY_INV)
+    # Calculating euclidean distance transform based on the inverse image
     dist_transform2 = cv2.distanceTransform(dilatation.astype('uint8'), cv2.DIST_L2, 5)
     ret2, erosion = cv2.threshold(dist_transform2, count, 255, cv2.THRESH_BINARY)
     im_out = erosion.astype('uint8')
@@ -68,7 +71,7 @@ def cleaning(im):
     im_fill = imfill(edge)
     return im_fill
 
-def findcircles(im, im_bin):
+def findcircles(im, im_bin, contour):
     im_copy = im.copy()
     im_bin_copy = im_bin.copy()
     im2, contours, hierarchy = cv2.findContours(im_bin_copy, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -91,7 +94,8 @@ def findcircles(im, im_bin):
             cv2.putText(im_copy, 'circle', (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
             if d > 10:
                 cv2.putText(im_copy, 'd > 10 pixels', (int(x), int(y) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
-                #cv2.circle(im_copy, (int(x), int(y)), int(r), (255, 0, 0), 2)
+                if contour == 'Yes':
+                    cv2.circle(im_copy, (int(x), int(y)), int(r), (255, 0, 0), 2)
             else:
                 cv2.putText(im_copy, 'd < 10 pixels', (int(x), int(y) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0))
         else:
@@ -100,12 +104,11 @@ def findcircles(im, im_bin):
 
 def draw_circles(im, im_bin):
     im_copy = im.copy()
-    rows, cols = im_bin.shape  # Obtain rows and columns
     # Detecting circles in the image with diameter greater than 10 pixels
-    circles = cv2.HoughCircles(im_bin, cv2.HOUGH_GRADIENT, 1.134, 50, param1 = 50, param2 = 30, minRadius = 5, maxRadius = 120)
+    circles = cv2.HoughCircles(im_bin, cv2.HOUGH_GRADIENT,
+                               1.134, 50, param1 = 50, param2 = 30, minRadius = 5, maxRadius = 120)
     # ensure at least some circles were found
     if circles is not None:
-       print(circles)
        # convert the (x, y) coordinates and radius of the circles to integers
        circles = np.round(circles[0, :]).astype("int")
        # loop over the (x, y) coordinates and radius of the circles
@@ -129,11 +132,26 @@ def plotting(original, processed):
     plt.show()
 
 def main():
-    im_original = cv2.imread('./imagens/shapes_leo.jpg')
+    #im_original = cv2.imread('./imagens/shapes_leo.jpg')
     #im_original = cv2.imread('./imagens/circles.png')
+
+    # construct the argument parse and parse the arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-i", "--image", required=True,
+                    help="path to the input image")
+    ap.add_argument("-c", "--contour", default='No',
+                    help="method to draw circles (Contour or Hough Transform")
+    args = vars(ap.parse_args())
+
+    im_original = cv2.imread(args["image"])
+    contour = args["contour"]
+
     im_clean = cleaning(im_original)
-    im_circles = findcircles(im_original, im_clean)
-    im_processed = draw_circles(im_circles, im_clean)
+    im_circles = findcircles(im_original, im_clean, contour)
+    if contour == 'Yes':
+        im_processed = im_circles
+    else:
+        im_processed = draw_circles(im_circles, im_clean)
     plotting(im_original, im_processed)
 
 if __name__=="__main__":
